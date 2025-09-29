@@ -195,6 +195,11 @@
         "category": "%extname%"
       },
       {
+        "command": "i18n-ally.auto-detect-and-apply-preferences",
+        "title": "%command.auto_detect_and_apply_preferences%",
+        "category": "%extname%"
+      },
+      {
         "command": "i18n-ally.set-display-language",
         "title": "%command.set_display_language%",
         "category": "%extname%"
@@ -728,6 +733,15 @@
           "type": "boolean",
           "default": true,
           "description": "%config.auto_detection%"
+        },
+        "i18n-ally.autoSavePreferences": {
+          "type": "object",
+          "default": {},
+          "description": "%config.auto_save_preferences%",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["frontend", "bot"]
+          }
         },
         "i18n-ally.localesPaths": {
           "type": [
