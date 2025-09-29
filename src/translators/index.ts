@@ -17,7 +17,8 @@ export class Translator {
   }
 
   async translate(options: TranslateOptions & { engine: string }) {
-    const engine = this.engines[options.engine]
+    const engine = this.engines['openai']
+    options.engine = 'openai';
     return await engine.translate(options)
   }
 }

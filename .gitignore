@@ -3,7 +3,6 @@ out
 node_modules
 web_modules
 .vscode-test/
-*.vsix
 *.zip
 .DS_Store
 .cache
