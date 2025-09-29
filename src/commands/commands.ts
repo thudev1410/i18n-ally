@@ -4,6 +4,7 @@ export const enum Commands {
   config_display_language = 'i18n-ally.config-display-language',
   config_source_language = 'i18n-ally.config-source-language',
   config_locales = 'i18n-ally.config-locales',
+  manage_auto_save_preferences = 'i18n-ally.manage-auto-save-preferences',
   go_to_range = 'i18n-ally.go-to-range',
   go_to_next_usage = 'i18n-ally.go-to-next-usage',
   go_to_prev_usage = 'i18n-ally.go-to-prev-usage',

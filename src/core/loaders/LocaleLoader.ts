@@ -12,6 +12,7 @@ import { Analyst, Global, Config } from '..'
 import { Telemetry, TelemetryKey } from '../Telemetry'
 import { Loader } from './Loader'
 import { ReplaceLocale, Log, applyPendingToObject, unflatten, NodeHelper, getCache, setCache, getLocaleCompare } from '~/utils'
+import { AutoSaveToFileManager } from '~/commands/autoSaveToFileAdvanced'
 import i18n from '~/i18n'
 
 const THROTTLE_DELAY = 1500
@@ -178,6 +179,13 @@ export class LocaleLoader extends Loader {
         placeHolder: `path/to/${locale}.json`,
         ignoreFocusOut: true,
       })
+    }
+
+    // Check for auto save preference first
+    const autoSaveTarget = AutoSaveToFileManager.getTargetFileForExtraction(locale, this.rootpath)
+    if (autoSaveTarget && paths.includes(autoSaveTarget)) {
+      Log.info(`🎯 Auto save: Using preference for ${locale} → ${path.basename(autoSaveTarget)}`)
+      return autoSaveTarget
     }
 
     if (Config.targetPickingStrategy === TargetPickingStrategy.MostSimilar && pending.textFromPath)
