@@ -181,9 +181,13 @@ export class LocaleLoader extends Loader {
       })
     }
 
-    // Check for auto save preference first
-    const autoSaveTarget = AutoSaveToFileManager.getTargetFileForExtraction(locale, this.rootpath)
-    if (autoSaveTarget && paths.includes(autoSaveTarget)) {
+    // In the case users have set auto save preferences, we should use them
+    // instead of the default behavior
+    // The data: key-value pair will be saved to the auto save preference file
+    // locale -> file_name (frontend.json or bot.json or so on)
+    Log.info(`🎯 Auto save: Checking for preference for ${locale}`)
+    const autoSaveTarget = AutoSaveToFileManager.getTargetFileForExtraction(locale, paths)
+    if (autoSaveTarget) {
       Log.info(`🎯 Auto save: Using preference for ${locale} → ${path.basename(autoSaveTarget)}`)
       return autoSaveTarget
     }

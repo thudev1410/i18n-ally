@@ -11,17 +11,6 @@ function getFilePreference(locale: string): string | undefined {
   return prefs[locale]
 }
 
-/**
- * Get the target file path for a locale based on stored preference
- */
-function getTargetFilePath(locale: string, basePath: string): string | null {
-  const preference = getFilePreference(locale)
-  if (!preference) {
-    return null
-  }
-  
-  return path.join(basePath, locale, `${preference}.json`)
-}
 
 /**
  * Enhanced auto save functionality that integrates with the extraction process
@@ -31,12 +20,22 @@ export class AutoSaveToFileManager {
   
   /**
    * Get the target file path for extraction based on current context
+   * This method should be called with the actual available file paths
    */
-  static getTargetFileForExtraction(locale: string, basePath: string): string | null {
+  static getTargetFileForExtraction(locale: string, availablePaths: string[]): string | null {
     // First, try to get stored preference
     const preference = getFilePreference(locale)
     if (preference) {
-      return getTargetFilePath(locale, basePath)
+      // Look for the preferred file in the available paths
+      const preferredFile = availablePaths.find(filePath => {
+        const fileName = path.basename(filePath, '.json')
+        return fileName === preference
+      })
+      
+      if (preferredFile) {
+        Log.info(`🎯 Auto save: Found preference file for ${locale}: ${path.basename(preferredFile)}`)
+        return preferredFile
+      }
     }
 
     // If no preference stored, try to determine from current file context
@@ -52,7 +51,16 @@ export class AutoSaveToFileManager {
       // Determine file type from current file
       const fileName = path.basename(currentFile, '.json')
       if (fileName === 'frontend' || fileName === 'bot') {
-        return path.join(basePath, locale, `${fileName}.json`)
+        // Look for matching file in available paths
+        const matchingFile = availablePaths.find(filePath => {
+          const availableFileName = path.basename(filePath, '.json')
+          return availableFileName === fileName
+        })
+        
+        if (matchingFile) {
+          Log.info(`🎯 Auto save: Using current file context for ${locale}: ${path.basename(matchingFile)}`)
+          return matchingFile
+        }
       }
     }
 
