@@ -46,4 +46,5 @@ export const enum Commands {
   review_apply_translation = 'i18n-ally.review.apply-translation',
   review_apply_suggestion = 'i18n-ally.review.apply-suggestion',
   deepl_usage = 'i18n-ally.deepl-usage',
+  write_missing_keys = 'i18n-ally.write-missing-keys',
 }
