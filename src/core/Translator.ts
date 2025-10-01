@@ -82,6 +82,7 @@ export class Translator {
     nodes: AccaptableTranslateItem[],
     sourceLanguage: string,
     targetLocales?: string[],
+    autoAccept: boolean = false,
   ) {
     if (!nodes.length)
       return
@@ -95,7 +96,7 @@ export class Translator {
       return
     }
 
-    if (jobs.length > 1) {
+    if (jobs.length > 1 && !autoAccept) {
       const Yes = i18n.t('prompt.button_yes')
       const result = await window.showWarningMessage(
         i18n.t('prompt.translate_multiple_confirm', jobs.length),

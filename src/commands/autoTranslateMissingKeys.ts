@@ -1,5 +1,5 @@
 import { window, ProgressLocation } from 'vscode'
-import { Global, CurrentFile, Translator, Config } from '../core'
+import { Global, CurrentFile, Translator, Config, LocaleNode } from '../core'
 import { Analyst } from '../core/Analyst'
 import { Log } from '../utils'
 import { AutoSaveToFileManager } from './autoSaveToFileAdvanced'
@@ -83,9 +83,19 @@ async function analyzeMissingKeys(): Promise<MissingKeyInfo[]> {
   const missingKeysByLocale: Record<string, string[]> = {}
   const allMissingKeys = new Set<string>()
 
+  // Get keys that exist in the source locale first
+  const sourceLocale = Config.sourceLanguage
+  const sourceKeys = loader.keys.filter(key => {
+    const node = loader.getNodeByKey(key, false, sourceLocale)
+    return node && node.type === 'node' && node.getValue(sourceLocale)?.trim()
+  })
+  
+  Log.info(`🔍 Source locale "${sourceLocale}" has ${sourceKeys.length} keys with values`)
+
   for (const locale of Global.visibleLocales) {
-    const keys = loader.keys
-    const cov = loader.getCoverage(locale, keys)
+    if (locale === sourceLocale) continue // Skip source locale
+    
+    const cov = loader.getCoverage(locale, sourceKeys)
     
     if (cov && cov.missingKeys.length > 0) {
       // Filter by auto save preferences if set
@@ -114,7 +124,6 @@ async function analyzeMissingKeys(): Promise<MissingKeyInfo[]> {
 
   // Create MissingKeyInfo objects
   const missingKeysInfo: MissingKeyInfo[] = []
-  const sourceLocale = Config.sourceLanguage
 
   for (const keypath of allMissingKeys) {
     // Find which locales are missing this key
@@ -126,9 +135,11 @@ async function analyzeMissingKeys(): Promise<MissingKeyInfo[]> {
     }
 
     if (missingLocales.length > 0) {
-      // Get source value from source locale
-      const sourceNode = loader.getNodeByKey(keypath, false, sourceLocale)
-      const sourceValue = sourceNode?.getValue(sourceLocale) || ''
+      // Since we already filtered sourceKeys, we know this key exists in source locale
+      const sourceNode = loader.getNodeByKey(keypath, false, sourceLocale)!
+      const sourceValue = sourceNode.getValue(sourceLocale)!
+
+      Log.info(`✅ Key "${keypath}" exists in source locale with value: "${sourceValue}"`)
 
       missingKeysInfo.push({
         keypath,
@@ -140,6 +151,16 @@ async function analyzeMissingKeys(): Promise<MissingKeyInfo[]> {
   }
 
   Log.info(`🔍 Analysis: Found ${missingKeysInfo.length} missing keys that can be translated`)
+  Log.info(`🔍 Total missing keys found: ${allMissingKeys.size}`)
+  Log.info(`🔍 Keys filtered out (no source): ${allMissingKeys.size - missingKeysInfo.length}`)
+  
+  // Debug: Show some examples of missing keys
+  if (missingKeysInfo.length > 0) {
+    Log.info(`🔍 Example missing keys: ${missingKeysInfo.slice(0, 3).map(k => k.keypath).join(', ')}`)
+    Log.info(`🔍 Source locale: ${sourceLocale}`)
+    Log.info(`🔍 Target locales: ${Global.visibleLocales.filter(l => l !== sourceLocale).join(', ')}`)
+  }
+  
   return missingKeysInfo
 }
 
@@ -197,6 +218,10 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
   let translatedCount = 0
   const totalKeys = missingKeysInfo.length
 
+  Log.info(`🚀 Starting translation of ${totalKeys} keys across ${options.targetLocales.length} locales`)
+  Log.info(`🚀 Source locale: ${options.sourceLocale}`)
+  Log.info(`🚀 Target locales: ${options.targetLocales.join(', ')}`)
+
   await window.withProgress({
     location: ProgressLocation.Notification,
     title: 'Auto-translating missing keys...',
@@ -204,6 +229,7 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
   }, async (progress, token) => {
     for (let i = 0; i < missingKeysInfo.length; i++) {
       if (token.isCancellationRequested) {
+        Log.info(`🛑 Translation cancelled by user`)
         break
       }
 
@@ -213,31 +239,108 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
         increment: (1 / totalKeys) * 100
       })
 
+      Log.info(`🔄 Processing key "${keyInfo.keypath}" (${i + 1}/${totalKeys})`)
+
       try {
-        // Get the source node
+        // Get the source node - this should exist since we're translating FROM source locale
         const sourceNode = loader.getNodeByKey(keyInfo.keypath, false, options.sourceLocale)
         if (!sourceNode || sourceNode.type !== 'node') {
-          Log.warn(`Source node not found for key: ${keyInfo.keypath}`)
+          Log.warn(`❌ Source node not found for key: ${keyInfo.keypath} in source locale: ${options.sourceLocale}`)
+          Log.warn(`❌ This key exists in target locales but not in source locale - skipping`)
           continue
         }
 
-        // Create LocaleRecord objects for missing locales
-        const recordsToTranslate = keyInfo.locales.map(locale => {
-          const filepath = loader.getFilepathByKey(keyInfo.keypath, locale)
-          return {
-            keypath: keyInfo.keypath,
-            locale,
-            value: '', // Empty value to be filled by translation
-            filepath,
-            type: undefined // This makes it compatible with AccaptableTranslateItem
-          }
-        }).filter(record => record.filepath) // Only include records with valid filepaths
+        // Verify the source node has a value to translate
+        const sourceValue = sourceNode.getValue(options.sourceLocale)
+        if (!sourceValue || sourceValue.trim() === '') {
+          Log.warn(`❌ Source value is empty for key: ${keyInfo.keypath} in source locale: ${options.sourceLocale}`)
+          continue
+        }
 
-        if (recordsToTranslate.length > 0) {
-          // Use Translator.translateNodes to translate
-          await Translator.translateNodes(loader, recordsToTranslate, options.sourceLocale, keyInfo.locales)
-          translatedCount++
-          Log.info(`✅ Translated key "${keyInfo.keypath}" to ${recordsToTranslate.length} locale(s)`)
+        Log.info(`✅ Found source value for "${keyInfo.keypath}": "${sourceValue}"`)
+
+        // Create LocaleNode objects for missing locales by creating empty records first
+        const pendingWrites = []
+        
+        for (const locale of keyInfo.locales) {
+          try {
+            // For missing keys, we need to determine where they should be saved
+            // Use the loader's requestMissingFilepath method which handles auto save preferences
+            const pendingWrite = {
+              keypath: keyInfo.keypath,
+              locale,
+              value: '', // Empty value to be filled by translation
+              filepath: undefined as string | undefined
+            }
+            
+            // Get the underlying LocaleLoader from ComposedLoader
+            const localeLoader = loader.loaders.find(l => l.name.includes('[LOCALE]')) as any
+            if (localeLoader && localeLoader.requestMissingFilepath) {
+              const filepath = await localeLoader.requestMissingFilepath(pendingWrite)
+              if (filepath) {
+                pendingWrite.filepath = filepath
+                pendingWrites.push(pendingWrite)
+                Log.info(`📁 Key "${keyInfo.keypath}" will be saved to: ${filepath}`)
+              } else {
+                Log.warn(`❌ Could not determine file path for key "${keyInfo.keypath}" in locale "${locale}"`)
+              }
+            } else {
+              Log.warn(`❌ LocaleLoader not found or requestMissingFilepath method not available`)
+            }
+          } catch (error) {
+            Log.error(`❌ Failed to get file path for key "${keyInfo.keypath}" in locale "${locale}": ${error}`)
+          }
+        }
+
+        if (pendingWrites.length > 0) {
+          try {
+            // First, create the missing records with empty values
+            Log.info(`🔧 Creating missing records for key "${keyInfo.keypath}" in ${pendingWrites.length} locale(s)`)
+            await loader.write(pendingWrites, false)
+            
+            // Now get the created nodes and translate them
+            const nodesToTranslate = keyInfo.locales.map(locale => {
+              const node = loader.getNodeByKey(keyInfo.keypath, false, locale)
+              if (!node) {
+                Log.warn(`❌ Failed to get node for key "${keyInfo.keypath}" in locale "${locale}"`)
+              }
+              return node
+            }).filter(node => node && node.type === 'node') as LocaleNode[]
+
+            Log.info(`🔧 Found ${nodesToTranslate.length} nodes to translate for key "${keyInfo.keypath}"`)
+
+            if (nodesToTranslate.length > 0) {
+              // Use Translator.translateNodes to translate the created nodes
+              Log.info(`🌐 Starting translation for key "${keyInfo.keypath}"`)
+              
+              // Track translation completion for this key
+              const translationPromises = keyInfo.locales.map(locale => {
+                return new Promise<void>((resolve) => {
+                  const disposable = Translator.onDidChange((event) => {
+                    if (event.keypath === keyInfo.keypath && event.locale === locale && event.action === 'end') {
+                      disposable.dispose()
+                      resolve()
+                    }
+                  })
+                })
+              })
+              
+              // Start translation (fire and forget) with autoAccept=true
+              Translator.translateNodes(loader, nodesToTranslate, options.sourceLocale, keyInfo.locales, true)
+              
+              // Wait for all translations of this key to complete
+              await Promise.all(translationPromises)
+              
+              translatedCount++
+              Log.info(`✅ Translated key "${keyInfo.keypath}" to ${nodesToTranslate.length} locale(s)`)
+            } else {
+              Log.warn(`❌ No valid nodes found for key "${keyInfo.keypath}" after creating records`)
+            }
+          } catch (writeError) {
+            Log.error(`❌ Failed to create records for key "${keyInfo.keypath}": ${writeError}`)
+          }
+        } else {
+          Log.warn(`❌ No valid filepaths found for key "${keyInfo.keypath}"`)
         }
       } catch (error) {
         Log.error(`Failed to translate key "${keyInfo.keypath}": ${error}`)
