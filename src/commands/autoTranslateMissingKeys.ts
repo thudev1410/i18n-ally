@@ -217,6 +217,11 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
   const loader = CurrentFile.loader!
   let translatedCount = 0
   const totalKeys = missingKeysInfo.length
+  
+  // API rate limiting delays (optimized for 1000 keys in 5-10 minutes)
+  // Note: Actual translation time depends on GPT API response time (~2-3s per locale)
+  const LOCALE_DELAY_MS = 100  // 100ms between locales (minimal)
+  const KEY_DELAY_MS = 200     // 200ms between keys (minimal)
 
   Log.info(`🚀 Starting translation of ${totalKeys} keys across ${options.targetLocales.length} locales`)
   Log.info(`🚀 Source locale: ${options.sourceLocale}`)
@@ -331,6 +336,10 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
             await translationPromise
             
             Log.info(`✅ Translated key "${keyInfo.keypath}" to locale "${locale}"`)
+            
+            // Add delay between translations to avoid API spam
+            Log.info(`⏳ Waiting ${LOCALE_DELAY_MS}ms before next translation...`)
+            await new Promise(resolve => setTimeout(resolve, LOCALE_DELAY_MS))
           } catch (error) {
             Log.error(`❌ Failed to process key "${keyInfo.keypath}" for locale "${locale}": ${error}`)
           }
@@ -338,6 +347,12 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
         
         translatedCount++
         Log.info(`✅ Completed key "${keyInfo.keypath}" for all ${keyInfo.locales.length} locale(s)`)
+        
+        // Add delay between keys to further prevent API spam
+        if (i < missingKeysInfo.length - 1) { // Don't delay after the last key
+          Log.info(`⏳ Waiting ${KEY_DELAY_MS}ms before next key...`)
+          await new Promise(resolve => setTimeout(resolve, KEY_DELAY_MS))
+        }
       } catch (error) {
         Log.error(`Failed to translate key "${keyInfo.keypath}": ${error}`)
       }
