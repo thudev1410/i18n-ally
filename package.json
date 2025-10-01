@@ -200,6 +200,11 @@
         "category": "%extname%"
       },
       {
+        "command": "i18n-ally.cleanup-unused-keys",
+        "title": "%command.cleanup_unused_keys%",
+        "category": "%extname%"
+      },
+      {
         "command": "i18n-ally.set-display-language",
         "title": "%command.set_display_language%",
         "category": "%extname%"

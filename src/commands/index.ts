@@ -15,6 +15,7 @@ import batchHardStringsExtract from './extractStringBulk'
 import writeMissingKeysToFile from './writeMissingKeysToFile'
 import manageAutoSavePreferencesModule from './manageAutoSavePreferencesModule'
 import autoDetectAndApplyPreferencesModule from './autoDetectAndApplyPreferencesModule'
+import cleanupUnusedKeysModule from './cleanupUnusedKeysModule'
 import { ExtensionModule } from '~/modules'
 
 const m: ExtensionModule = (ctx) => {
@@ -34,7 +35,8 @@ const m: ExtensionModule = (ctx) => {
     gotoNextUsage(ctx),
     writeMissingKeysToFile(ctx),
     manageAutoSavePreferencesModule(ctx),
-    autoDetectAndApplyPreferencesModule(ctx)
+    autoDetectAndApplyPreferencesModule(ctx),
+    cleanupUnusedKeysModule(ctx)
   ])
 }
 

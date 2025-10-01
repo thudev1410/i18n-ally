@@ -5,6 +5,7 @@
   "command.config_source_language": "Change source language",
   "command.manage_auto_save_preferences": "Manage auto save preferences",
   "command.auto_detect_and_apply_preferences": "Auto-detect locales and apply preferences",
+  "command.cleanup_unused_keys": "Clean up unused translation keys",
   "command.copy_key": "Copy i18n key",
   "command.deepl_usage": "DeepL API usage",
   "command.delete_key": "Delete key",
