@@ -16,6 +16,7 @@ import writeMissingKeysToFile from './writeMissingKeysToFile'
 import manageAutoSavePreferencesModule from './manageAutoSavePreferencesModule'
 import autoDetectAndApplyPreferencesModule from './autoDetectAndApplyPreferencesModule'
 import cleanupUnusedKeysModule from './cleanupUnusedKeysModule'
+import autoTranslateMissingKeysModule from './autoTranslateMissingKeysModule'
 import { ExtensionModule } from '~/modules'
 
 const m: ExtensionModule = (ctx) => {
@@ -36,7 +37,8 @@ const m: ExtensionModule = (ctx) => {
     writeMissingKeysToFile(ctx),
     manageAutoSavePreferencesModule(ctx),
     autoDetectAndApplyPreferencesModule(ctx),
-    cleanupUnusedKeysModule(ctx)
+    cleanupUnusedKeysModule(ctx),
+    autoTranslateMissingKeysModule(ctx)
   ])
 }
 

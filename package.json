@@ -205,6 +205,11 @@
         "category": "%extname%"
       },
       {
+        "command": "i18n-ally.auto-translate-missing-keys",
+        "title": "%command.auto_translate_missing_keys%",
+        "category": "%extname%"
+      },
+      {
         "command": "i18n-ally.set-display-language",
         "title": "%command.set_display_language%",
         "category": "%extname%"

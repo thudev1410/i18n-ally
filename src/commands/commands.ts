@@ -7,6 +7,7 @@ export const enum Commands {
   manage_auto_save_preferences = 'i18n-ally.manage-auto-save-preferences',
   auto_detect_and_apply_preferences = 'i18n-ally.auto-detect-and-apply-preferences',
   cleanup_unused_keys = 'i18n-ally.cleanup-unused-keys',
+  auto_translate_missing_keys = 'i18n-ally.auto-translate-missing-keys',
   go_to_range = 'i18n-ally.go-to-range',
   go_to_next_usage = 'i18n-ally.go-to-next-usage',
   go_to_prev_usage = 'i18n-ally.go-to-prev-usage',
