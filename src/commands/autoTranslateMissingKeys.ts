@@ -1,5 +1,5 @@
 import { window, ProgressLocation } from 'vscode'
-import { Global, CurrentFile, Translator, Config, LocaleNode } from '../core'
+import { Global, CurrentFile, Translator, Config } from '../core'
 import { Analyst } from '../core/Analyst'
 import { Log } from '../utils'
 import { AutoSaveToFileManager } from './autoSaveToFileAdvanced'
@@ -292,56 +292,52 @@ async function performAutoTranslation(missingKeysInfo: MissingKeyInfo[], options
           }
         }
 
-        if (pendingWrites.length > 0) {
+        // Process each locale sequentially to avoid race conditions
+        for (const locale of keyInfo.locales) {
           try {
-            // First, create the missing records with empty values
-            Log.info(`🔧 Creating missing records for key "${keyInfo.keypath}" in ${pendingWrites.length} locale(s)`)
-            await loader.write(pendingWrites, false)
-            
-            // Now get the created nodes and translate them
-            const nodesToTranslate = keyInfo.locales.map(locale => {
-              const node = loader.getNodeByKey(keyInfo.keypath, false, locale)
-              if (!node) {
-                Log.warn(`❌ Failed to get node for key "${keyInfo.keypath}" in locale "${locale}"`)
-              }
-              return node
-            }).filter(node => node && node.type === 'node') as LocaleNode[]
-
-            Log.info(`🔧 Found ${nodesToTranslate.length} nodes to translate for key "${keyInfo.keypath}"`)
-
-            if (nodesToTranslate.length > 0) {
-              // Use Translator.translateNodes to translate the created nodes
-              Log.info(`🌐 Starting translation for key "${keyInfo.keypath}"`)
-              
-              // Track translation completion for this key
-              const translationPromises = keyInfo.locales.map(locale => {
-                return new Promise<void>((resolve) => {
-                  const disposable = Translator.onDidChange((event) => {
-                    if (event.keypath === keyInfo.keypath && event.locale === locale && event.action === 'end') {
-                      disposable.dispose()
-                      resolve()
-                    }
-                  })
-                })
-              })
-              
-              // Start translation (fire and forget) with autoAccept=true
-              Translator.translateNodes(loader, nodesToTranslate, options.sourceLocale, keyInfo.locales, true)
-              
-              // Wait for all translations of this key to complete
-              await Promise.all(translationPromises)
-              
-              translatedCount++
-              Log.info(`✅ Translated key "${keyInfo.keypath}" to ${nodesToTranslate.length} locale(s)`)
-            } else {
-              Log.warn(`❌ No valid nodes found for key "${keyInfo.keypath}" after creating records`)
+            const pendingWrite = pendingWrites.find(pw => pw.locale === locale)
+            if (!pendingWrite) {
+              Log.warn(`❌ No pending write found for locale "${locale}"`)
+              continue
             }
-          } catch (writeError) {
-            Log.error(`❌ Failed to create records for key "${keyInfo.keypath}": ${writeError}`)
+
+            // Create record for this single locale
+            Log.info(`🔧 Creating record for key "${keyInfo.keypath}" in locale "${locale}"`)
+            await loader.write([pendingWrite], false)
+            
+            // Get the created node for this locale
+            const nodeToTranslate = loader.getNodeByKey(keyInfo.keypath, false, locale)
+            if (!nodeToTranslate || nodeToTranslate.type !== 'node') {
+              Log.warn(`❌ Failed to get node for key "${keyInfo.keypath}" in locale "${locale}"`)
+              continue
+            }
+
+            Log.info(`🌐 Starting translation for key "${keyInfo.keypath}" in locale "${locale}"`)
+            
+            // Track translation completion for this single locale
+            const translationPromise = new Promise<void>((resolve) => {
+              const disposable = Translator.onDidChange((event) => {
+                if (event.keypath === keyInfo.keypath && event.locale === locale && event.action === 'end') {
+                  disposable.dispose()
+                  resolve()
+                }
+              })
+            })
+            
+            // Start translation for this single locale (sequential)
+            Translator.translateNodes(loader, [nodeToTranslate], options.sourceLocale, [locale], true)
+            
+            // Wait for this translation to complete before moving to next locale
+            await translationPromise
+            
+            Log.info(`✅ Translated key "${keyInfo.keypath}" to locale "${locale}"`)
+          } catch (error) {
+            Log.error(`❌ Failed to process key "${keyInfo.keypath}" for locale "${locale}": ${error}`)
           }
-        } else {
-          Log.warn(`❌ No valid filepaths found for key "${keyInfo.keypath}"`)
         }
+        
+        translatedCount++
+        Log.info(`✅ Completed key "${keyInfo.keypath}" for all ${keyInfo.locales.length} locale(s)`)
       } catch (error) {
         Log.error(`Failed to translate key "${keyInfo.keypath}": ${error}`)
       }
